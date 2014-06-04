@@ -5,23 +5,34 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <signal.h>
 
 #define GROUP_SIZE 1
 
 #define REQUEST_FIELD 4
-#define APPROVAL_FIELD 5
+#define ACK_FIELD 5
 
 #define REQUEST_CAVE 6
-#define APPROVAL_CAVE 7
-
-#define NO_MOON_STONE 239
-#define HAVE_MOON_STONE 312
+#define ACK_CAVE 7
 
 #define NOT_QUEUED 123
 #define QUEUED 654
 
-void gatherMoonStone(int &stone){
-	stone = HAVE_MOON_STONE;
+#define true 1
+#define false 0
+
+struct{
+	int state;
+	int *group_size;
+	char *group_queue;
+	
+} state;
+
+int size,rank;
+
+void cavemen(int no){
+	
+	alarm(1);
 }
 
 int main(int argc, char **argv){
@@ -43,52 +54,64 @@ int main(int argc, char **argv){
 
 	//MPI Initialization
 	MPI_Init(&argc, &argv);
-	int size,rank;
 	MPI_Status status;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+	state.group_size = calloc((size_t) size, sizeof(int));
+	state.group_queue = calloc((size_t) size, sizeof(char));
 	
 	//Defining cavemen variables
-	int group_size[size];
-	int stone = NO_MOON_STONE;
-	int group_queue[size];
 	int i;
 	for (i = 0; i<size; i++)
-		group_queue[i] = NOT_QUEUED;
+		state.group_queue[i] = NOT_QUEUED;
 
 //1.
 	//randomizing group size
 	srand(time(0) + rank);
-	group_size[rank] = m + ( rand() % ( n-m+1 ) );
-/*	printf("Grupa %d - %d jaskiniowców\n", rank, group_size[rank]);
-*/
+	state.group_size[rank] = m + ( rand() % ( n-m+1 ) );
+//	printf("Grupa %d - %d jaskiniowców\n", rank, state.group_size[rank]);
+
 	//sending this group size to others
-	int i;
 	for (i=0; i<size; i++)
 		if (i != rank)
-			MPI_Send(&(group_size[rank]), 1, MPI_INT, i, GROUP_SIZE, MPI_COMM_WORLD);
+			MPI_Send(&(state.group_size[rank]), 1, MPI_INT, i, GROUP_SIZE, MPI_COMM_WORLD);
 	//receiving group sizes from others
 	for (i=0; i<size; i++)
 		if (i != rank)
-			MPI_Recv(&(group_size[i]), 1, MPI_INT, i, GROUP_SIZE, MPI_COMM_WORLD, MPI_IGNORE_STATUS);
-
-/*	for (i=0; i<size; i++)
-		printf("%d: grupa %d - %d jaskiniowców\n", rank, i, group_size[i]);
-*/
-
-//2.
+			MPI_Recv(&(state.group_size[i]), 1, MPI_INT, i, GROUP_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+/*
 	for (i=0; i<size; i++)
-		if (i != rank)
-			MPI_Send(rank, 1, MPI_INT, i, REQUEST_FIELD, MPI_COMM_WORLD);
+		printf("%d: grupa %d - %d jaskiniowców\n", rank, i, state.group_size[i]);
+*/
+	signal(SIGALRM, cavemen);
+	alarm(1);	
 
-	for (i=0; i<size-1; i++)
-		MPI_Recv(NULL, 1, MPI_INT, MPI_ANY_SOURCE, APPROVAL_FIELD, MPI_COMM_WORLD, MPI_IGNORE_STATUS);
+	while(1){
+		int recv;
+		MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+		printf("%d: received message\n", rank);
+		switch (status.MPI_TAG){
+			//Field entry request
+			case REQUEST_FIELD:
+				
+			break;	
+			//Field entry accept
+			case ACK_FIELD:
+			
+			break;
+			//Cave entry request
+			case REQUEST_CAVE:
+			
+			break;
+			//Cave entry accept
+			case ACK_CAVE:
+		
+			break;
 
-	gatherMoonStone(stone);
-	if (stone == HAVE_MOON_STONE)
-		printf("Cavemen group no. %d gathered moon_stone", rank);
-	
-	
+			
+		}
+	}
 
 	MPI_Finalize();
 }
