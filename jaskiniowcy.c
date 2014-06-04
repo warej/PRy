@@ -21,8 +21,16 @@
 #define true 1
 #define false 0
 
+//	States
+#define	INITIAL       333	//	alg.: 1)
+#define GO_FOR_STONE  334	//	alg.: 2)
+#define GLADE_TO_CAVE 335	//	alg.: 3 - 6
+#define WAIT_4_CEREM  336	//	alg.: 7 - 9
+#define FINITO        337	//	alg.: 10 - 12
+
+
 struct{
-	int state;
+	int state = INITIAL;
 	int *group_size;
 	char *group_queue;
 	
@@ -30,13 +38,105 @@ struct{
 
 int size,rank;
 
+//	Reaction for signal SIGALRM
 void cavemen(int no){
-	
+	switch (state.state) {
+		case INITIAL:
+			break;
+		case GO_FOR_STONE:
+			break;
+		case GLADE_TO_CAVE:
+			break;
+		case WAIT_4_CEREM:
+			break;
+		case FINITO:
+			break;
+	}
+
 	alarm(1);
 }
 
+
+void init () {	//	alg.: 1)
+	// Randomize group size
+	//	TODO
+
+	// Broadcast group size to others
+	//	TODO
+
+	// Increment status
+}
+
+
+void go_for_stone () {	//	alg.: 2)
+	// Broadtcast request for entering Critical Section 1.
+
+	// Increment status
+}
+
+
+void glade_to_cave () {	//	alg.: 3 - 6
+	// If enough ACK_FIELD are recieved
+	// TODO
+
+		// If there is only 1 stone and I'm too big to enter the cave
+		// then go back to GO_FOR_STONE
+		// TODO
+
+		// If there is no stone - wait for it
+		// TODO
+
+		// Grab stone and leave CS 1.
+		// TODO
+
+		// Random delay (?)
+
+		// Broadtcast request for entering CS 2.
+
+		// Increment status
+}
+
+
+void wait_4_cerem () {	//	alg.: 7 - 9
+	// If enough ACK_CAVE are recieved
+	//TODO
+
+		// Enter the cave
+		// TODO
+
+		// Leave CS 2.
+		// TODO
+
+		// Increment status
+}
+
+
+void finalize_round () {	//	alg.: 10 - 12
+	// If cave is full
+	// TODO
+
+		// Celebrate
+		// TODO
+
+		// Leave cave (broadcast)
+		// TODO
+
+		// Put back the stone
+		// TODO
+
+		// random delay (?)
+
+		state.state = GO_FOR_STONE;
+
+}
+
+
 int main(int argc, char **argv){
-	int j, m, n, k;
+
+	int j,	// Cave capacity
+		m,	// Minimal group size
+		n,	// Maximal group size
+		k;	// Stones count
 	if (argc != 5){
 		printf("You have to type in all 4 numbers as parameters:\nJ - Cave capacity\nM - Minimum group size\nN - Maximum group size\nK - Number of Saint Moon Stones (K<J)\n\n");
 		exit(EXIT_FAILURE);
