@@ -131,10 +131,11 @@ void finalize_round () {	//	alg.: 10 - 12
 
 //	Reaction for signal SIGALRM
 void cavemen(int no){
+	printf("(%d): Got alarm!\n", rank);
+
 	switch (state.state) {
-//		case INITIAL:
-//			break;
-		case GO_FOR_STONE:
+		case INITIAL:
+			break;
 			go_for_stone();
 			break;
 		case GLADE_TO_CAVE:
@@ -143,6 +144,10 @@ void cavemen(int no){
 			break;
 		case FINITO:
 			break;
+		case INITIAL:
+			break;
+		default:
+			perror("Undefined state!");
 	}
 
 	alarm(1);
@@ -183,8 +188,9 @@ int main(int argc, char **argv){
 	signal(SIGALRM, cavemen);
 	alarm(1);	
 
-	while(state.state != GO_FOR_STONE){
-/*		int recv;
+	while(1){
+		/*	*/
+		int recv;
 		MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 		printf("%d: received message\n", rank);
 		switch (status.MPI_TAG){
@@ -206,7 +212,8 @@ int main(int argc, char **argv){
 				break;
 
 		}
-*/	}
+		/*	*/	
+	}
 
 	MPI_Finalize();
 }
