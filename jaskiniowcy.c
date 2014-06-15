@@ -46,7 +46,7 @@ void init () {	//	alg.: 1)
 	// Randomize group size
 	srand(time(0) + rank);
 	state.group_size[rank] = m + ( rand() % ( n-m+1 ) );
-//	printf("Grupa %d - %d jaskiniowców\n", rank, state.group_size[rank]);
+	printf("(%d -> %d): Grupa %d - %d jaskiniowców\n", rank, getpid(), rank, state.group_size[rank]);
 
 	// Broadcast group size to others
 	int i;
@@ -134,8 +134,7 @@ void cavemen(int no){
 	printf("(%d): Got alarm!\n", rank);
 
 	switch (state.state) {
-		case INITIAL:
-			break;
+		case GO_FOR_STONE:
 			go_for_stone();
 			break;
 		case GLADE_TO_CAVE:
@@ -150,6 +149,8 @@ void cavemen(int no){
 			perror("Undefined state!");
 	}
 
+	// The line below is necessary
+	signal(SIGALRM, cavemen);
 	alarm(1);
 }
 
