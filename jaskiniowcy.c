@@ -11,6 +11,8 @@
 
 #define REQUEST_FIELD 4
 #define ACK_FIELD 5
+#define PICK_STONE 10
+#define LEAVE_STONE 11
 
 #define REQUEST_CAVE 6
 #define ACK_CAVE 7
@@ -43,6 +45,12 @@ struct{
 
 	// Contains queue of groups waiting for response
 	int *group_queue;
+
+	// Table of processes having stones
+	char *got_stone;
+
+	// Tells if process is on the glade
+	char on_the_glade;
 } state;
 
 int size, // Count of all processes
@@ -215,15 +223,22 @@ int main (int argc, char **argv) {
 
 	//Defining cavemen variables
 	state.group_size = calloc( (size_t) size, sizeof(int) );
-	state.group_queue = calloc( (size_t) size, sizeof(char) );
+	state.group_queue = calloc( (size_t) size, sizeof(int) );
+	state.got_stone = calloc( (size_t) size, sizeof(char) );
 	int i;
-	for (i = 0; i<size; i++)
+	for (i = 0; i<size; i++) {
 		state.group_queue[i] = NOT_QUEUED;
+		state.got_stone[i] = false;
+	}
+	state.on_the_glade = false;
 
 	init();
 
 	signal(SIGALRM, cavemen);
 	alarm(1);	
+
+	// Vars outside of loop
+	int field_ack_counter = 0;
 
 	while (true){
 	/*	*/
@@ -233,9 +248,10 @@ int main (int argc, char **argv) {
 		// Field entry request
 		case REQUEST_FIELD:
 			printf("(%2d): Recieved REQUEST_FIELD from (%2d)\n", rank, status.MPI_SOURCE);
-			if (	// - I've got the stone
-					(state.state == GLADE_TO_CAVE || state.state == WAIT_4_CEREM)
-					// - or I'm waiting for the stone and my priority (rank)
+
+			if (	// - I'm on the glade
+					state.on_the_glade == true
+					// - or I'm waiting for the glade and my priority (rank)
 					//   is higher then sender's
 					|| (state.state == GO_FOR_STONE && rank > status.MPI_SOURCE) ) {
 
@@ -256,10 +272,26 @@ int main (int argc, char **argv) {
 		// Field entry accept
 		case ACK_FIELD:
 			printf("(%2d): Recieved ACK_FIELD from (%2d)\n", rank, status.MPI_SOURCE);
-			// TODO
-			// Increment status
-			state.state = GLADE_TO_CAVE;
+			field_ack_counter = field_ack_counter + 1;
+			if (field_ack_counter == size - 1) {
+				// Increment status
+				state.state = GLADE_TO_CAVE;
+				field_ack_counter = 0;
+
+				// Set alarm
+				signal(SIGALRM, cavemen);
+				alarm(1);
+			}
 		break;
+
+		// Process on field took 1 stone
+		case PICK_STONE:
+			state.got_stone[status.MPI_SOURCE] = true;
+			break;
+
+		// Some process left the stone
+		case LEAVE_STONE:
+			state.got_stone[status.MPI_SOURCE] = false;
 
 		// Cave entry request
 		case REQUEST_CAVE:
