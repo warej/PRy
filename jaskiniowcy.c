@@ -59,10 +59,10 @@ void init () {	//	alg.: 1)
 		if (i != rank)
 			MPI_Recv(&(state.group_size[i]), 1, MPI_INT, i, GROUP_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-/*
+	/*	*/
 	for (i=0; i<size; i++)
-		printf("%d: grupa %d - %d jaskiniowców\n", rank, i, state.group_size[i]);
-*/
+		printf("(%d): grupa %d - %d jaskiniowców\n", rank, i, state.group_size[i]);
+	/*	*/
 
 	// Increment status
 	state.state = GO_FOR_STONE;
@@ -70,8 +70,11 @@ void init () {	//	alg.: 1)
 
 void go_for_stone () {	//	alg.: 2)
 	// Broadtcast request for entering Critical Section 1.
+	MPI_Send(&(state.group_size[rank]), 1, MPI_INT, MPI_ANY_TAG, REQUEST_FIELD, MPI_COMM_WORLD);
 
 	// Increment status
+	while (state.GFS_ACKS < {some number});
+	state.state = GLADE_TO_CAVE;
 
 	//DEBUG
 }
@@ -138,10 +141,13 @@ void cavemen(int no){
 			go_for_stone();
 			break;
 		case GLADE_TO_CAVE:
+			glade_to_cave();
 			break;
 		case WAIT_4_CEREM:
+			wait_4_cerem();
 			break;
 		case FINITO:
+			finalize_round();
 			break;
 		case INITIAL:
 			break;
@@ -189,7 +195,7 @@ int main(int argc, char **argv){
 	signal(SIGALRM, cavemen);
 	alarm(1);	
 
-	while(1){
+	while(true){
 		/*	*/
 		int recv;
 		MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
