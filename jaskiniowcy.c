@@ -191,8 +191,8 @@ void cavemen (int no){
 }
 
 
-int main (int argc, char **argv){
-	if (argc != 5){
+int main (int argc, char **argv) {
+	if (argc != 5) {
 		printf("You have to type in all 4 numbers as parameters:\nJ - Cave capacity\nM - Minimum group size\nN - Maximum group size\nK - Number of Saint Moon Stones (K<J)\n\n");
 		exit(EXIT_FAILURE);
 	}
@@ -214,8 +214,8 @@ int main (int argc, char **argv){
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	//Defining cavemen variables
-	state.group_size = calloc((size_t) size, sizeof(int));
-	state.group_queue = calloc((size_t) size, sizeof(char));
+	state.group_size = calloc( (size_t) size, sizeof(int) );
+	state.group_queue = calloc( (size_t) size, sizeof(char) );
 	int i;
 	for (i = 0; i<size; i++)
 		state.group_queue[i] = NOT_QUEUED;
@@ -225,12 +225,12 @@ int main (int argc, char **argv){
 	signal(SIGALRM, cavemen);
 	alarm(1);	
 
-	while(true){
+	while (true){
 	/*	*/
 	int recv;
 	MPI_Recv(&recv, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 	switch (status.MPI_TAG){
-		//Field entry request
+		// Field entry request
 		case REQUEST_FIELD:
 			printf("(%2d): Recieved REQUEST_FIELD from (%2d)\n", rank, status.MPI_SOURCE);
 			if (	// - I've got the stone
@@ -239,7 +239,7 @@ int main (int argc, char **argv){
 					//   is higher then sender's
 					|| (state.state == GO_FOR_STONE && rank > status.MPI_SOURCE) ) {
 
-				//   Add source process to queue
+				// Add source process to queue
 				if (state.group_queue[status.MPI_SOURCE] != NOT_QUEUED)
 					printf("(%2d): !ERR! Process queue[%2d] changed from %d to %d",
 						rank, status.MPI_SOURCE,
@@ -248,12 +248,12 @@ int main (int argc, char **argv){
 				state.group_queue[status.MPI_SOURCE] = WAITING_4_GLADE;
 			}
 			else {
-				//   Reply with ACK_FIELD
+				// Reply with ACK_FIELD
 				MPI_Send(&recv, 1, MPI_INT, status.MPI_SOURCE, ACK_FIELD, MPI_COMM_WORLD);
 			}
 		break;	
 		
-		//Field entry accept
+		// Field entry accept
 		case ACK_FIELD:
 			printf("(%2d): Recieved ACK_FIELD from (%2d)\n", rank, status.MPI_SOURCE);
 			// TODO
@@ -261,13 +261,13 @@ int main (int argc, char **argv){
 			state.state = GLADE_TO_CAVE;
 		break;
 
-		//Cave entry request
+		// Cave entry request
 		case REQUEST_CAVE:
 			printf("(%2d): Recieved REQUEST_CAVE from (%2d)\n", rank, status.MPI_SOURCE);
 			// TODO
 		break;
 
-		//Cave entry accept
+		// Cave entry accept
 		case ACK_CAVE:
 			printf("(%2d): Recieved ACK_CAVE from (%2d)\n", rank, status.MPI_SOURCE);
 			// TODO
