@@ -43,6 +43,9 @@ struct{
 	// Contains sizes of each group
 	int *group_size;
 
+	// Contains summary group size
+	int sum_group_size;
+
 	// Contains queue of groups waiting for response
 	int *group_queue;
 
@@ -51,6 +54,9 @@ struct{
 
 	// Tells if process is on the glade
 	char on_the_glade;
+
+	// Tells if process is in the cave
+	char in_the_cave;
 } state;
 
 int size, // Count of all processes
@@ -69,10 +75,10 @@ void send_to_all (void *data, int data_size, MPI_Datatype data_type, int msg_tag
 
 
 int count_free_stones () {
-	int i, c = 0;
+	int i, c = k;
 	for (i = 0; i < size; i++)
-		if (state.got_stone[i] == false)
-			c++;
+		if (state.got_stone[i] == true)
+			c--;
 
 	return c;
 }
@@ -83,26 +89,29 @@ int count_free_stones () {
 void init () {	//	alg.: 1)
 	// Randomize group size
 	srand(time(0) + rank);
-	state.group_size[rank] = m + ( rand() % (n-m+1) );
+	state.group_size[rank] = m + (rand() % (n-m+1) );
 	printf("(%2d -> %2d): Grupa %d - %d jaskiniowców\n",
 		rank, getpid(), rank, state.group_size[rank] );
 
 	// Broadcast group size to others
 	int i;
-	for (i=0; i<size; i++)
+	for (i = 0; i < size; i++)
 		if (i != rank)
 			MPI_Send(&(state.group_size[rank]), 1, MPI_INT, i,
 				GROUP_SIZE, MPI_COMM_WORLD);
 
 	//receiving group sizes from others
-	for (i=0; i<size; i++)
+	for (i = 0; i < size; i++)
 		if (i != rank)
 			MPI_Recv(&(state.group_size[i]), 1, MPI_INT, i,
 				GROUP_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 	/*	*/
-	for (i=0; i<size; i++)
-		printf("(%2d): grupa %d - %d jaskiniowców\n", rank, i, state.group_size[i]);
+	state.sum_group_size = 0;
+	for (i = 0; i < size; i++) {
+		state.sum_group_size = state.sum_group_size + state.group_size[i];
+		//printf("(%2d): grupa %d - %d jaskiniowców\n", rank, i, state.group_size[i]);
+	}
 	/*	*/
 
 	// Increment status
@@ -124,6 +133,7 @@ void go_for_stone () {	//	alg.: 2)
 //   and try to enter the cave
 void glade_to_cave () {	//	alg.: 3 - 6
 	int i, free_stones = count_free_stones();
+	//printf("(%2d): There is still %d free stones\n", rank, free_stones);
 
 	// If there is no stone - wait for it
 	if (free_stones == 0) {
@@ -135,36 +145,47 @@ void glade_to_cave () {	//	alg.: 3 - 6
 	// If there is only 1 stone and I'm too big to enter the cave
 	// then go back to GO_FOR_STONE
 	if (free_stones == 1) {
-		int  min_free_group = rank;
+		int cave_free_space = j;
+		for (i = 0; i < size; i++) {
+			if (state.got_stone[i] == true) {
+				cave_free_space = j - state.group_size[i];
+			}
+		}
+		
+		char someone_can = false;
 		for (i = 0; i < size; i++)
-			if (state.got_stone[i] == false && state.group_size[i] < state.group_size[rank] )
-				min_free_group = i;
+			if (state.got_stone[i] == false && state.group_size[i] < cave_free_space)
+				someone_can = true;
 
-		if (min_free_group == rank) {
-			// B-cast PICK_STONE
-			printf("(%2d): Picking the stone!\n", rank);
-			send_to_all( (void*)&(state.group_size[rank]),
-				1,
-				MPI_INT,
-				PICK_STONE);
+		if (state.group_size[rank] > cave_free_space && someone_can == true) {
+			// Resign and let someone else try
+			for (i = 0; i < size; i++) {
+				if (state.group_queue[i] == WAITING_4_GLADE) {
+					MPI_Send( (void*)&(state.group_size[rank]), 1, MPI_INT, i, ACK_FIELD, MPI_COMM_WORLD);
+					state.group_queue[i] = NOT_QUEUED;
+				}
+			}
+			state.on_the_glade = false;
+			state.state = GO_FOR_STONE;
+			signal(SIGALRM, cavemen);
+			alarm(1);
+			return;
 		}
 	}
-
+	
 	// Grab stone
-	else if (free_stones > 1) {
-		// B-cast PICK_STONE
-			printf("(%2d): Picking the stone!\n", rank);
-		send_to_all( (void*)&(state.group_size[rank]),
-			1,
-			MPI_INT,
-			PICK_STONE);
-	}
+	// B-cast PICK_STONE
+	printf("(%2d): __Picking up the stone!__\n", rank);
+	send_to_all( (void*)&(state.group_size[rank]),
+		1,
+		MPI_INT,
+		PICK_STONE);
 
 	// Leave Glade - reply to all waiting glade requests
 	for (i = 0; i < size; i++) {
-		if (state.group_queue[i] == true) {
+		if (state.group_queue[i] == WAITING_4_GLADE) {
 			MPI_Send( (void*)&(state.group_size[rank]), 1, MPI_INT, i, ACK_FIELD, MPI_COMM_WORLD);
-			state.group_queue[i] = false;
+			state.group_queue[i] = NOT_QUEUED;
 		}
 	}
 	state.on_the_glade = false;
@@ -172,7 +193,7 @@ void glade_to_cave () {	//	alg.: 3 - 6
 	// Random delay (?)
 
 	// Broadtcast request for entering CS 2.
-	send_to_all( (void*)&(state.group_size[rank]), 1, MPI_INT, REQUEST_FIELD);
+	send_to_all( (void*)&(state.group_size[rank]), 1, MPI_INT, REQUEST_CAVE);
 }
 
 
@@ -272,14 +293,18 @@ int main (int argc, char **argv) {
 		state.got_stone[i] = false;
 	}
 	state.on_the_glade = false;
+	state.in_the_cave = false;
 
 	init();
+
+	//printf("(%2d): Summary group size = %d\n", rank, state.sum_group_size);
 
 	signal(SIGALRM, cavemen);
 	alarm(1);	
 
 	// Vars outside of loop
 	int field_ack_counter = 0;
+	int cave_ack_counter = 0, cave_ack_size = 0;
 
 	while (true){
 	/*	*/
@@ -329,16 +354,32 @@ int main (int argc, char **argv) {
 		// Process on field took 1 stone
 		case PICK_STONE:
 			state.got_stone[status.MPI_SOURCE] = true;
+			//printf("(%2d): %d grabbed a stone!\n", rank, status.MPI_SOURCE);
 			break;
 
 		// Some process left the stone
 		case LEAVE_STONE:
 			state.got_stone[status.MPI_SOURCE] = false;
+			printf("(%2d): %d leaved a stone!\n", rank, status.MPI_SOURCE);
 
 		// Cave entry request
 		case REQUEST_CAVE:
 			printf("(%2d): Recieved REQUEST_CAVE from (%2d)\n", rank, status.MPI_SOURCE);
-			// TODO
+
+			// Increment counters
+			cave_ack_counter = cave_ack_counter + 1;
+			cave_ack_size = cave_ack_size + state.group_size[status.MPI_SOURCE];
+			if ( state.got_stone[rank] == false || ( // I've got no stone or
+					state.in_the_cave == false && ( // I've got stone but I'm not in the cave and
+							state.state != GLADE_TO_CAVE // I'm not wating for the cave or
+							|| rank < status.MPI_SOURCE// My priority is lower than requesting process
+						)
+					)
+				) {
+			// then reply with ACK_CAVE
+			} else {
+			// - Add requester to queue
+			}
 		break;
 
 		// Cave entry accept
