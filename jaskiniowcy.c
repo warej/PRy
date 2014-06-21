@@ -1,3 +1,9 @@
+/**
+ * Lista rzeczy do zrobienia:
+ * - sprawdzić, czy działa (a na razie nie powinno) dla wywołania pojedynczego procesu.
+ *     Pewnie będzie potrzebne wysyłanie REQUESTa również do siebie samego.
+ *
+ */
 #define _XOPEN_SOURCE
 #include <unistd.h>
 #include <mpi.h>
@@ -69,7 +75,7 @@ void cavemen (int no);
 void send_to_all (void *data, int data_size, MPI_Datatype data_type, int msg_tag) {
 	int i;
 	for (i = 0; i < size; i++)
-		if (i != rank)
+		//if (i != rank)
 			MPI_Send(data, data_size, data_type, i, msg_tag, MPI_COMM_WORLD);
 }
 
@@ -315,11 +321,12 @@ int main (int argc, char **argv) {
 		case REQUEST_FIELD:
 			printf("(%2d): Recieved REQUEST_FIELD from (%2d)\n", rank, status.MPI_SOURCE);
 
-			if (	// - I'm on the glade
-					state.on_the_glade == true
-					// - or I'm waiting for the glade and my priority (rank)
-					//   is higher then sender's
-					|| (state.state == GO_FOR_STONE && rank > status.MPI_SOURCE) ) {
+			if (	status.MPI_SOURCE != rank && ( // It's me
+						// - I'm on the glade
+						state.on_the_glade == true
+						// - or I'm waiting for the glade and my priority (rank)
+						//   is higher then sender's
+						|| (state.state == GO_FOR_STONE && rank > status.MPI_SOURCE) ) ) {
 
 				// Add source process to queue
 				if (state.group_queue[status.MPI_SOURCE] != NOT_QUEUED)
@@ -339,7 +346,7 @@ int main (int argc, char **argv) {
 		case ACK_FIELD:
 			printf("(%2d): Recieved ACK_FIELD from (%2d)\n", rank, status.MPI_SOURCE);
 			field_ack_counter = field_ack_counter + 1;
-			if (field_ack_counter == size - 1) {
+			if (field_ack_counter == size) {
 				// Increment status
 				state.on_the_glade = true;
 				state.state = GLADE_TO_CAVE;
@@ -369,23 +376,48 @@ int main (int argc, char **argv) {
 			// Increment counters
 			cave_ack_counter = cave_ack_counter + 1;
 			cave_ack_size = cave_ack_size + state.group_size[status.MPI_SOURCE];
-			if ( state.got_stone[rank] == false || ( // I've got no stone or
-					state.in_the_cave == false && ( // I've got stone but I'm not in the cave and
-							state.state != GLADE_TO_CAVE // I'm not wating for the cave or
-							|| rank < status.MPI_SOURCE// My priority is lower than requesting process
+			if ( status.MPI_SOURCE == rank || state.got_stone[rank] == false || ( // It's me or I've got no stone or
+						state.in_the_cave == false && ( // I've got stone but I'm not in the cave and
+								state.state != GLADE_TO_CAVE // I'm not wating for the cave or
+								|| rank < status.MPI_SOURCE// My priority is lower than requesting process
+							)
 						)
-					)
-				) {
-			// then reply with ACK_CAVE
+					) {
+
+				// Reply with ACK_CAVE
+				MPI_Send(&recv, 1, MPI_INT, status.MPI_SOURCE, ACK_CAVE, MPI_COMM_WORLD);
 			} else {
-			// - Add requester to queue
+				// Add requester to queue
+				if (state.group_queue[status.MPI_SOURCE] != NOT_QUEUED)
+					printf("(%2d): !ERR! Process queue[%2d] changed from %d to %d",
+						rank, status.MPI_SOURCE,
+						state.group_queue[status.MPI_SOURCE],  WAITING_4_CAVE);
+
+				state.group_queue[status.MPI_SOURCE] = WAITING_4_CAVE;
 			}
 		break;
 
 		// Cave entry accept
 		case ACK_CAVE:
 			printf("(%2d): Recieved ACK_CAVE from (%2d)\n", rank, status.MPI_SOURCE);
-			// TODO
+			
+			// Increment counters
+			cave_ack_counter = cave_ack_counter + 1;
+			cave_ack_size = cave_ack_size + state.group_size[status.MPI_SOURCE];
+
+			// If recieved enough ACKs to go into the cave
+			if (state.in_the_cave == false && j >= (state.sum_group_size - cave_ack_size) ) {
+				// Increment status
+				state.in_the_cave = true;
+				state.state = WAIT_4_CEREM;
+
+				// Set alarm
+				signal(SIGALRM, cavemen);
+				alarm(1);
+			} else if (state.in_the_cave == true && cave_ack_counter == size) {
+				cave_ack_counter = 0;
+				cave_ack_counter = cave_ack_counter - state.sum_group_size;
+			}
 		break;
 		
 		default:
