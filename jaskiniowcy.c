@@ -234,7 +234,7 @@ char can_any_group_get_in(int free_stones){
 			min = state.group_size[i];
 	}
 	// return answer: If the smallest group can fit into cave?
-	if (min <= j-sum_in_cave)
+	if (min <= j-sum_in_cave || state.sum_group_size == sum_in_cave)
 		return true;
 	else
 		return false;
@@ -295,7 +295,8 @@ void ceremony () {	//	alg.: 10 - 12
 	int i;
 	for (i = 0; i < size; i++) {
 		if (state.group_queue[i] == WAITING_4_CAVE) {
-			MPI_Send(&null /*(void*)&(state.group_size[rank])*/, 1, MPI_INT, i, ACK_CAVE, MPI_COMM_WORLD);
+			if (state.in_the_cave[i] == false)
+				MPI_Send(&null, 1, MPI_INT, i, ACK_CAVE, MPI_COMM_WORLD);
 			state.group_queue[i] = NOT_QUEUED;
 		}
 	}	
@@ -500,6 +501,8 @@ int main (int argc, char **argv) {
 		case ENTER_CAVE:
 			printf("(%2d): Received ENTER_CAVE from (%2d)\n", rank, status.MPI_SOURCE);
 			state.in_the_cave[status.MPI_SOURCE] = true;
+			state.group_queue[status.MPI_SOURCE] = NOT_QUEUED;
+
 		break;
 
 		case CELEBRATE:

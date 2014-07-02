@@ -78,7 +78,7 @@ char can_any_group_get_in(int free_stones){
 		else if (state.group_size[i] < min && (free_stones > 0 || state.got_stone[i]))
 			min = state.group_size[i];
 	}
-	if (min <= j-sum_in_cave) return true;
+	if (min <= j-sum_in_cave || state.sum_group_size == sum_in_cave) return true;
 	else return false;
 }
 
@@ -94,7 +94,8 @@ void ceremony () {
 	int i;
 	for (i = 0; i < size; i++)
 		if (state.group_queue[i] == WAITING_4_CAVE) {
-			MPI_Send(&null, 1, MPI_INT, i, ACK_CAVE, MPI_COMM_WORLD);
+			if (state.in_the_cave[i] == false)
+				MPI_Send(&null, 1, MPI_INT, i, ACK_CAVE, MPI_COMM_WORLD);
 			state.group_queue[i] = NOT_QUEUED;
 		}
 	state.state = GO_FOR_STONE;
@@ -220,6 +221,7 @@ int main (int argc, char **argv) {
 				break;
 			case ENTER_CAVE:
 				state.in_the_cave[status.MPI_SOURCE] = true;
+				state.group_queue[status.MPI_SOURCE] = NOT_QUEUED;
 				break;
 			case CELEBRATE:
 				if (state.state == WAIT_4_CEREM)
