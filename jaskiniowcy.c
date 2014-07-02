@@ -224,17 +224,19 @@ void glade_to_cave () {	//	alg.: 3 - 6
 
 
 char can_any_group_get_in(int free_stones){
-	int sum_in_cave = 0, i, min = n;
+	int sum_in_cave = 0, i, min = n, waiting = 0;
 
 	for (i = 0; i<size; i++){
 		if (state.in_the_cave[i] == true)
 			sum_in_cave += state.group_size[i];
 		// in groups outside cave look for the smallest one - among all groups if there are stones left, otherwise only among groups with stones
-		else if (state.group_size[i] < min && (free_stones > 0 || state.got_stone[i]))
+		else if (state.group_size[i] < min && (free_stones > 0 || state.got_stone[i])) {
+			waiting = waiting + 1;
 			min = state.group_size[i];
+		}
 	}
 	// return answer: If the smallest group can fit into cave?
-	if (min <= j-sum_in_cave || state.sum_group_size == sum_in_cave)
+	if (min <= j-sum_in_cave && waiting > 0)
 		return true;
 	else
 		return false;
