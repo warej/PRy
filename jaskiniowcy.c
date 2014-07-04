@@ -70,6 +70,10 @@ struct{
 
 	// Tells if process is in the cave
 	char *in_the_cave;
+
+	//
+	int *seqNo;
+	int curSeq;
 } state;
 
 int size, // Count of all processes
@@ -219,7 +223,8 @@ void glade_to_cave () {	//	alg.: 3 - 6
 	// Random delay (?)
 
 	// Broadcast request for entering CS 2.
-	send_to_all( &null/*(void*)&(state.group_size[rank])*/, 1, MPI_INT, REQUEST_CAVE);
+	state.curSeq = state.curSeq + 1;
+	send_to_all( &(state.curSeq) /*(void*)&(state.group_size[rank])*/, 1, MPI_INT, REQUEST_CAVE);
 }
 
 
@@ -298,7 +303,7 @@ void ceremony () {	//	alg.: 10 - 12
 	for (i = 0; i < size; i++) {
 		if (state.group_queue[i] == WAITING_4_CAVE) {
 			if (state.in_the_cave[i] == false)
-				MPI_Send(&null, 1, MPI_INT, i, ACK_CAVE, MPI_COMM_WORLD);
+				MPI_Send(&(state.seqNo[i]), 1, MPI_INT, i, ACK_CAVE, MPI_COMM_WORLD);
 			state.group_queue[i] = NOT_QUEUED;
 		}
 	}	
@@ -365,6 +370,8 @@ int main (int argc, char **argv) {
 	state.group_queue = calloc( (size_t) size, sizeof(int) );
 	state.got_stone = calloc( (size_t) size, sizeof(char) );
 	state.in_the_cave = calloc( (size_t) size, sizeof(char) );
+	state.seqNo = calloc( (size_t) size, sizeof(int) );
+	state.curSeq = 0;
 	int i;
 	for (i = 0; i<size; i++) {
 		state.group_queue[i] = NOT_QUEUED;
@@ -458,7 +465,7 @@ int main (int argc, char **argv) {
 					) {
 
 				// Reply with ACK_CAVE
-				MPI_Send(&null, 1, MPI_INT, status.MPI_SOURCE, ACK_CAVE, MPI_COMM_WORLD);
+				MPI_Send(&recv, 1, MPI_INT, status.MPI_SOURCE, ACK_CAVE, MPI_COMM_WORLD);
 			} else {
 				// Add requester to queue
 				if (state.group_queue[status.MPI_SOURCE] != NOT_QUEUED)
@@ -467,13 +474,14 @@ int main (int argc, char **argv) {
 						state.group_queue[status.MPI_SOURCE],  WAITING_4_CAVE);
 
 				state.group_queue[status.MPI_SOURCE] = WAITING_4_CAVE;
+				state.seqNo[status.MPI_SOURCE] = recv;
 			}
 		break;
 
 		// Cave entry accept
 		case ACK_CAVE:
 			printf("(%2d): Received ACK_CAVE from (%2d)\n", rank, status.MPI_SOURCE);
-			if (state.state == GLADE_TO_CAVE){
+			if (state.state == GLADE_TO_CAVE && recv == state.curSeq){
 				// Increment counter
 				cave_ack_counter = cave_ack_counter + 1; // ERR? chyba niepotrzebne?
 				// Increment sum size of groups outside the cave (because they sent ACK)
@@ -486,6 +494,7 @@ int main (int argc, char **argv) {
 					printf("(%2d): [CAVE] In the cave(%d >= %d - %d), waiting for ceremony.\n", rank, j, state.sum_group_size, cave_ack_size);
 					//broadcast entering cave
 					send_to_all(&null, 1, MPI_INT, ENTER_CAVE);
+
 
 					cave_ack_counter = 0;
 					cave_ack_size = 0;
